@@ -67,10 +67,12 @@ module VdpMode3(
   always @* begin
     if(canRead) begin
       case(cycle)
+        // read tile data index, flags, anim
         0,1,2,3: begin
           address = { tileAddr, 9'b0 } + { 5'b0, sRow, sCol, cycle[1:0] };
           read = 1;
         end
+        // read tile pattern (4 bytes (8 nibbles), index palette colors)
         4,5,6,7: begin
           address = { patAddr, 9'b0 } + { 4'b0, tileIndex, tileLine, cycle[1:0] };
           read = 1;

@@ -1179,23 +1179,7 @@ module VRam(
     mem[17'h0600e] = { 4'd14, 4'd1 };
     mem[17'h0600f] = { 4'd15, 4'd0 };
     
-    // screen 2 - palette
-    mem[17'h0f000] = createRgb(0,0,0);
-    mem[17'h0f001] = createRgb(0,0,0);
-    mem[17'h0f002] = createRgb(2,2,1);
-    mem[17'h0f003] = createRgb(5,5,2);
-    mem[17'h0f004] = createRgb(7,7,3);
-    mem[17'h0f005] = createRgb(7,1,0);
-    mem[17'h0f006] = createRgb(7,3,0);
-    mem[17'h0f007] = createRgb(7,7,0);
-    mem[17'h0f008] = createRgb(0,5,0);
-    mem[17'h0f009] = createRgb(0,3,0);
-    mem[17'h0f00a] = createRgb(0,6,3);
-    mem[17'h0f00b] = createRgb(0,2,3);
-    mem[17'h0f00c] = createRgb(0,0,2);
-    mem[17'h0f00d] = createRgb(4,0,2);
-    mem[17'h0f00e] = createRgb(4,2,0);
-    mem[17'h0f00f] = createRgb(7,5,2);
+  
 
     
   end

@@ -5,20 +5,24 @@ module VdpMode2(
   input clk, rst, enable,
   input signed [9:0] xPos,
   input signed [9:0] yPos,
-  input [7:0] border,
-  input [7:0] background,
-  input [7:0] foreground,
+  input [5:0] border,
+  input [5:0] background,
+  input [5:0] foreground,
   input noColor,
-  input fg,
   input [7:0] addrChar,    // character (text on screen): ASCII char per byte, 40*24
   input [7:0] addrColor,   // color (color of text) format: BBBBFFFF per char
   input [7:0] addrPat,     // pattern (patterns of chars): 8bytes per char
-  input [7:0] addrPalette, // palette (palette configuration per color): 16 RRRGGGBB colors
   output read_out,
   output [16:0] addr_out,
   input [7:0] data,
-  output [7:0] rgb
+  
+  // pixel output as index in palette
+  output [3:0] index
 );
+  
+  wire [3:0]borderIx = border[3:0];
+  wire [3:0]backgroundIx = background[3:0];
+  wire [3:0]foregroundIx = foreground[3:0];
   
   /**
   	we have 6 cycles per char
@@ -84,39 +88,27 @@ module VdpMode2(
     if(canRead) begin
       case(addr_cycle)
         
-        3'd0: begin 	
+        0: begin 	
           // request character
           addr = { addrChar, 3'd0, col } + m2mult42(yPos[7:3]);
           read = 1;
         end
 
-        3'd1: begin
+        1: begin
           // request colors for char
           addr = { addrColor, 3'd0, col } + m2mult42(yPos[7:3]);
           read = 1;
         end
 
-        3'd2: begin
+        2: begin
           // request pattern of char for this line
           addr = { addrPat, 9'd0 } + { 6'd0, char, yPos[2:0] };
           read = 1;
         end
-
-        3'd3: begin
-          // request palette for foreground color
-          addr = { addrPalette, 5'd0, charForeground };
-          read = 1;
-        end
-
-        3'd4: begin
-          // request palette for background color
-          addr = { addrPalette, 5'd0, charBackground };
-          read = 1;
-        end
         
-        3'd5: begin
+        3: begin
           addr = 0;
-          read = 1; // why do we need to keep read one cycle longer active; otheriwise background palette data is missing (cycle 4 data) ?
+          read = 1; // why do we need to keep read one cycle longer?
         end
         
         default: begin
@@ -139,11 +131,9 @@ module VdpMode2(
   ***************/
 
   reg [7:0] char;
-  reg [3:0] charForeground;
-  reg [3:0] charBackground;
-  reg [7:0] pattern, ptn;
-  reg [7:0] paletteForeground, pfg;
-  reg [7:0] paletteBackground, pbg;
+  reg [3:0] charForeground, fg;
+  reg [3:0] charBackground, bg;
+  reg [7:0] pattern, ptn = 0;
 
   wire canStore = enable
     && sxPos[9:8] == 2'b00  // x must be positive and in range of 0-256
@@ -159,40 +149,32 @@ module VdpMode2(
       // request byte data
       case(data_cycle)  // use data_cycle for data processing
 
-        3'd0: begin
+        0: begin
           // store incoming character
           char <= data;
         end
 
-        3'd1: begin
+        1: begin
           // store incoming color info
-          charBackground <= data[7:4];
-          charForeground <= data[3:0];
+          charBackground <= noColor ? 0 : data[7:4];
+          charForeground <= noColor ? 0 : data[3:0];
         end
 
-        3'd2: begin
+        2: begin
           // store pattern for this line
           pattern <= data;
         end
-
-        3'd3: begin
-          // store foreground palette
-          paletteForeground <= noColor ? foreground : data;
-        end
-
-        3'd4: begin
-          // store background palette
-          paletteBackground <= noColor || charBackground == 4'd0 ? background : data;
-        end
         
-        default: begin
+        5: begin
           // copy over data to the next buffer, because
           // we will be getting the next bytes during the outputting these values
           // (effectivly this is a 2 stage pipeline, where each stage is 6 cycles long)
           ptn <= pattern;
-          pbg <= paletteBackground;
-          pfg <= paletteForeground;
+          bg <= charBackground == 0 ? (backgroundIx == 0 ? borderIx : backgroundIx) : charBackground;
+          fg <= charForeground == 0 ? foregroundIx : charForeground;
         end
+        
+        default:;
         
       endcase
     end
@@ -212,9 +194,9 @@ module VdpMode2(
   /* process stored data to ouput pixel */
   always @(posedge clk) begin
     if(canOutput)
-      rgb <= ptn[pixel] ? pfg : pbg;
+      index <= ptn[pixel] ? fg : bg;
     else
-      rgb <= border;
+      index <= borderIx;
   end
   
  

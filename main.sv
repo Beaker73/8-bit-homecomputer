@@ -14,6 +14,7 @@
 
 `include "vdp.sv"
 `include "vdp_pixpos.sv"
+`include "vdp_palette.sv"
 `include "vdp_mode0.sv"
 `include "vdp_mode1.sv"
 `include "vdp_mode2.sv"

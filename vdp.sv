@@ -5,6 +5,7 @@
 
 `include "vram.sv"
 `include "sync.sv"
+`include "vdp_palette.sv"
 `include "vdp_pixpos.sv"
 `include "vdp_mode0.sv"
 `include "vdp_mode1.sv"
@@ -40,11 +41,11 @@ module Vdp(
   
   always @(posedge clk) begin
     if (rst) begin
-      regs[REG_MODE] <= 3; // 0 - Null; 1 - 256color; 2 - Text 40; 3 - 32x26 Tiled
-      regs[REG_FLAGS] <= 8'b00000000; //  0=Sprites, 1=NoColor (mode2)
-      regs[REG_BG_COLOR] <= createRgb(0, 2, 2);
-      regs[REG_BDR_COLOR] <= createRgb(0, 2, 2);
-      regs[REG_FG_COLOR] <= createRgb(7, 7, 3);
+      regs[REG_MODE] <= 2; // 0 - Null; 1 - 256color; 2 - Text 40; 3 - 32x26 Tiled
+      regs[REG_FLAGS] <= 8'b00000010; //  0=Sprites, 1=NoColor (mode2)
+      regs[REG_BG_COLOR] <= { 2'd0, 2'd0, 4'd0 };
+      regs[REG_BDR_COLOR] <= { 2'd0, 2'd0, 4'd12 };
+      regs[REG_FG_COLOR] <= { 2'd0, 2'd0, 4'd4 };
       regs[REG_PIXPOS] <= createPixPos(0, 0);
       /** 1 **/
       // regs[REG_ADDR_PIXEL_H]  		<= {17'h00000}[16:9];
@@ -119,26 +120,24 @@ module Vdp(
   );
   
   wire isMode2 = regs[REG_MODE] == 2;
-  wire [7:0] rgb2;
+  wire [3:0] index2;
   wire read2;
   wire [16:0] address2;
   VdpMode2 mode2(
     .clk(clk), .rst(rst),
     .enable(isMode2),
     .xPos(xPos), .yPos(yPos),
-    .border(regs[REG_BDR_COLOR]),
-    .background(regs[REG_BG_COLOR]),
-    .foreground(regs[REG_FG_COLOR]),
+    .border({regs[REG_BDR_COLOR]}[5:0]),
+    .background({regs[REG_BG_COLOR]}[5:0]),
+    .foreground({regs[REG_FG_COLOR]}[5:0]),
     .noColor(noColor),
-    .fg(fg),
     .addrChar(regs[REG_ADDR_CHAR_H]),
     .addrColor(regs[REG_ADDR_COLOR_H]),
     .addrPat(regs[REG_ADDR_PIXEL_H]),
-    .addrPalette(regs[REG_ADDR_PALETTE_H]),
     .read_out(read2),
     .addr_out(address2),
     .data(data),
-    .rgb(rgb2)
+    .index(index2)
   );
   
   wire isMode3 = regs[REG_MODE] == 3;
@@ -155,7 +154,7 @@ module Vdp(
     .addr_out(address3),
     .data(data),
     .rgb(rgb3)
-  );
+  ); 
   
   wire reads;
   wire [7:0] rgbs;
@@ -173,7 +172,35 @@ module Vdp(
     .render(renderSprite), .rgb(rgbs)
   );
   
+  /********************
+  ** Convert Indexed values to RGB
+  ********************/
+  
+  wire [1:0] palette;
+  wire [3:0] index;
+  always @* begin
+    case(regs[REG_MODE])
+      2: begin
+        palette = 2'd0;
+        index = index2;
+      end
+      default: begin
+        palette = 2'd0;
+        index = 4'd0;
+      end
+    endcase
+  end
+  
   wire [7:0] rgbp;
+  Palette p(
+    .palette(palette),
+    .index(index),
+    .rgb(rgbp)
+  );
+  
+  
+  
+  wire [7:0] rgbm;
   always @* begin
     
     if(spritesEnabled && reads) begin
@@ -186,37 +213,37 @@ module Vdp(
         0: begin
           read = 0;
           address = 0;
-          rgbp = rgb0;
+          rgbm = rgb0;
         end
 
         1: begin
           read = read1;
           address = address1;
-          rgbp = rgb1;
+          rgbm = rgb1;
         end
 
         2: begin
           read = read2;
           address = address2;
-          rgbp = rgb2;
+          rgbm = rgbp;
         end
 
         3: begin
           read = read3;
           address = address3;
-          rgbp = rgb3;
+          rgbm = rgb3;
         end
 
         default: begin
           read = 0;
           address = 0;
-          rgbp = 0;
+          rgbm = 0;
         end
 
       endcase
     end
     
-    rgb = (spritesEnabled && renderSprite) ? rgbs : rgbp;
+    rgb = (spritesEnabled && renderSprite) ? rgbs : rgbm;
     
   end
   
